@@ -71,12 +71,24 @@ class VecSim:
         self.titrationBool=False
         self.gradients =[]
 
-
         if self.rn.rxn_coupling or self.rn.coupling:
             self.coupled_kon = torch.zeros(len(self.rn.kon), requires_grad=True).double()
 
-
-    def simulate(self, optim='yield',node_str=None,verbose=False,switch=False,switch_time=0,switch_rates=None,corr_rxns=[[0],[1]],conc_scale=1.0,mod_factor=1.0,conc_thresh=1e-5,mod_bool=True,yield_species=-1,store_interval=-1,change_cscale_tit=False):
+    def simulate(self, 
+                 optim='yield',
+                 node_str=None,
+                 verbose=False,
+                 switch=False,
+                 switch_time=0,
+                 switch_rates=None,
+                 corr_rxns=[[0],[1]],
+                 conc_scale=1.0,
+                 mod_factor=1.0,
+                 conc_thresh=1e-5,
+                 mod_bool=True,
+                 yield_species=-1,
+                 store_interval=-1,
+                 change_cscale_tit=False):
         """
         modifies reaction network
         :return:
@@ -218,16 +230,9 @@ class VecSim:
 
             delta_copies = torch.matmul(self.rn.M, rate_step)*conc_scale
 
-
-
-
             #Calculate rxn_flux
             if self.calc_flux:
                 rxn_flux = self.rn.get_reaction_flux()
-
-
-
-
 
             if (torch.min(self.rn.copies_vec + delta_copies) < 0):
                 # temp_copies = self.rn.copies_vec + delta_copies

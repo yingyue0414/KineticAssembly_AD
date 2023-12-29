@@ -118,13 +118,18 @@ class Optimizer:
             # self.scheduler = ReduceLROnPlateau(self.optimizer,'max',patience=30)
             if self.rn.assoc_is_param:
                 if self.rn.partial_opt:
-                    self.scheduler = MultiplicativeLR(self.optimizer,lr_lambda=[self.creat_lambda for i in range(len(self.rn.params_kon))])
+                    self.scheduler = MultiplicativeLR(self.optimizer,
+                                                      lr_lambda=[self.creat_lambda 
+                                                                 for _ in range(len(self.rn.params_kon))])
                     self.lambda_ct = -1
                     self.gamma = gamma
                 else:
-                    self.scheduler = MultiplicativeLR(self.optimizer,lr_lambda=self.assoc_lambda)
+                    self.scheduler = MultiplicativeLR(self.optimizer,
+                                                      lr_lambda=self.assoc_lambda)
             if self.rn.chap_is_param:
-                self.scheduler = MultiplicativeLR(self.optimizer,lr_lambda=[self.lambda_c,self.lambda_k])
+                self.scheduler = MultiplicativeLR(self.optimizer,
+                                                  lr_lambda=[self.lambda_c,
+                                                             self.lambda_k])
             else:
                 self.lr_change_step = None
 
@@ -167,7 +172,8 @@ class Optimizer:
         self.lambda_ct += 1
         return(torch.min(self.rn.params_k[self.lambda_ct % len(self.rn.params_k)]).\
                item() * self.lr_group[self.lambda_ct%len(self.rn.params_k)] / \
-                self.optimizer.state_dict()['param_groups'][self.lambda_ct % len(self.rn.params_k)]['lr'])
+                self.optimizer.state_dict()['param_groups'][self.lambda_ct % \
+                                                            len(self.rn.params_k)]['lr'])
 
     def plot_observable(self, iteration, nodes_list, ax=None):
         t = self.sim_observables[iteration]['steps']
@@ -217,7 +223,7 @@ class Optimizer:
                  chap_mode=1,
                  change_lr_yield=0.98,
                  var_thresh=10):
-        print("Reaction Parameters before optimization: ")
+        print("Reaction Parameters before optimization: ", end='')
         print(self.rn.get_params())
 
         print("Optimizer State:", self.optimizer.state_dict)
@@ -229,14 +235,15 @@ class Optimizer:
             self.rn.reset()
 
             if self.rn.boolCreation_rxn and change_runtime:
-                #Change the runtime so that the simulation is stopped after a certain number of molecules have been dumped.
+                #Change the runtime so that the simulation is stopped after a certain 
+                # number of molecules have been dumped.
                 final_conc = 100
                 #Get current rates of dumping
                 # min_rate = torch.min(self.rn.get_params()[0])
                 rates = np.array(self.rn.get_params())
-                titration_end = final_conc/rates
+                titration_end = final_conc / rates
 
-                titration_time_map = {v['uid'] : final_conc / v['k_on'] 
+                titration_time_map = {v['uid']: final_conc / v['k_on'] 
                                       for v in self.rn.creation_rxn_data.values()}
                 for r in range(len(rates)):
                     titration_time_map[self.rn.optim_rates[r]]  = titration_end[r]
@@ -599,9 +606,6 @@ class Optimizer:
                         # if total_yield-max_yield > 0:
                         #     self.final_yields.append(total_yield)
                         #     self.final_solns.append(new_params)
-
-
-
 
             values = psutil.virtual_memory()
             mem = values.available / (1024.0 ** 3)
