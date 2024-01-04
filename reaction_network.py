@@ -61,7 +61,7 @@ class ReactionNetwork:
             same uid attribute. Edges also store k_on and k_off.
             Nodes also store the rosetta score of that state, and edges store the delta
             score for that reaction. Note that all energy related attributes will be null
-            until the reactionNetwork is processed by an energy explorer.
+            until the ReactionNetwork is processed by an energy explorer.
 
         allowed_edges: set[Tuple[int]]
             A set containing the allowed pairwise reactions defined in the input file.
@@ -69,10 +69,11 @@ class ReactionNetwork:
         is_one_step: bool
             Whether to model loop closure as a one step reaction (potentially better for
             for larger, more "floppy", complexes) or two step (far less intermediate states,
-            rosetta energies map more accurately)
+            Rosetta energies map more accurately)
 
     """
     def __init__(self, bngl_path: str, one_step: bool, seed=None):
+        print(22222) # DELME
         """
         :param bngl_path: path to bngl containing pairwise interactions.
         :param one_step: whether this reaction network should be built as one step or two step
@@ -88,26 +89,26 @@ class ReactionNetwork:
         self.boolCreation_rxn = False
         self.creation_species = []
         self.creation_nodes = []
-        self.creation_rxn_data ={}
-        self.titration_end_conc=-1
+        self.creation_rxn_data = {}
+        self.titration_end_conc = -1
         self.default_k_creation = 1e-1
         self.boolDestruction_rxn = False
         self.destruction_species = []
         self.destruction_nodes = []
-        self.destruction_rxn_data ={}
+        self.destruction_rxn_data = {}
         self.default_k_destruction = 1e-1
         self.max_subunits = -1
         self.max_interactions = 2
         self.monomer_add_only = True
         self.chaperone=False
         self.homo_rates=False
-        # default observables are monomers and final complex
+        # Default observables are monomers and final complex
         self.observables = dict()
         self.flux_vs_time = dict()
         self.seed = seed
         # resolve graph
         self._initial_copies = {}
-        self.parse_bngl(open(bngl_path, 'r'), seed=self.seed)
+        self.parse_bngl(open(bngl_path, 'r'))
         self.parameters = {}  # gradient params
         self.is_energy_set = True
 
@@ -149,10 +150,10 @@ class ReactionNetwork:
                 predecessors.add(poss_coreactant[0])
             yield predecessors
 
-    def parse_param(self, line):
-        # Reserved Params
-        # loop_coop: the loop cooperativity factor (f) = exp(-dG_coop / kb*T)
-        #           range of 0 to 1, with binding being strongly forward at 1
+    def _parse_param(self, line):
+        """
+        :param line: Line of .bngl file sent from parse_bngl()
+        """
         items = line.split(None, 1)
         items[1] = eval(items[1])
         print(items)
@@ -184,7 +185,7 @@ class ReactionNetwork:
             self.titration_end_conc=items[1]
         return items
 
-    def parse_species(self, line, params):
+    def _parse_species(self, line, params):
         items = line.split()
         sp_info = re.split('\\)|,|\\(', items[0])
         try:
@@ -194,7 +195,7 @@ class ReactionNetwork:
                 init_pop = float(items[1])
             except ValueError:
                 init_pop = int(params[items[1]])
-        if self.max_subunits>0:
+        if self.max_subunits > 0:
             print("Using multiGraph")
             state_net = nx.MultiGraph()
         else:
@@ -202,11 +203,15 @@ class ReactionNetwork:
         state_net.add_node(sp_info[0])
         print(state_net.nodes())
         print(init_pop)
-        self.network.add_node(self._node_count, struct=state_net, copies=Tensor([float(init_pop)]),subunits=1)
+        self.network.add_node(self._node_count, 
+                              struct=state_net, 
+                              copies=Tensor([float(init_pop)]),
+                              subunits=1)
         self._initial_copies[self._node_count] = Tensor([float(init_pop)])
         self._node_count += 1
 
-    def parse_rule(self, line, params, seed=None, percent_negative=.5, score_range=100):
+    def _parse_rule(self, line, params, seed=None, percent_negative=.5, 
+                    score_range=100):
         items = re.split(r' |, ', line)
         print("Parsing rule...")
         #Old split
@@ -235,8 +240,6 @@ class ReactionNetwork:
                 print(r_info)
                 react_1 = r_info[0]
                 react_2 = r_info[1]
-
-
 
         if params['default_assoc']:
             self.k_on = params['default_assoc']
@@ -267,23 +270,21 @@ class ReactionNetwork:
             self.destruction_species.append(species)
         else:
             self.allowed_edges[tuple(sorted([react_1, react_2]))] = [None, None, LOOP_COOP_DEFAULT, score]
-
-
         if params.get('rxn_coupling') is not None:
             self.rxn_coupling=params['rxn_coupling']
 
-    def parse_bngl(self, f, seed=None):
+    def parse_bngl(self, f):
         """
-        Read the bngl file and initialize allowed edges, and initialize the network with
+        Read the .bngl file to initialize allowed edges and the network with
         monomer nodes and copies.
-        :param f: file object in read mode, pointed at input bngl
+        :param f: File object in read mode, pointed at input .bngl file
         :return: None
         """
         parameters = dict()
         cur_block = ''
         for line in f:
             line = line.strip()
-            if len(line) > 0 and line[0] != '#':
+            if line and line[0] != '#':
                 if "begin parameters" in line:
                     cur_block = 'param'
                 elif "begin species" in line:
@@ -296,13 +297,12 @@ class ReactionNetwork:
                     cur_block = ' '
                 else:
                     if cur_block == 'param':
-                        items = self.parse_param(line)
+                        items = self._parse_param(line)
                         parameters[items[0]] = items[1]
                     elif cur_block == 'species':
-                        self.parse_species(line, parameters)
+                        self._parse_species(line, parameters)
                     elif cur_block == 'rules':
-                        self.parse_rule(line, parameters, seed=None)
-
+                        self._parse_rule(line, parameters, seed=None)
 
         # attach loop cooperativity param to rules (python 3.6+ only due to dict ordering changes)
         if "loop_coop" in parameters:
@@ -990,15 +990,14 @@ class ReactionNetwork:
     def resolve_tree(self):
         """
         Build the full reaction network from whatever initial info was given
-        :param is_one_step:
-        :return:
+        :return: None
         """
         new_nodes = list(self.network.nodes(data=True))
         while len(new_nodes) > 0:
             node = new_nodes.pop(0)
             for anode in list(self.network.nodes(data=True)):
-                print("Node-1 : ",node)
-                print("Node-2 : ",anode)
+                print("Node-1:", node)
+                print("Node-2:", anode)
                 if not self.is_hindered(node, anode):
                     print("False")
                     new_nodes += self.match_maker(node, anode, self.is_one_step)
@@ -1011,7 +1010,7 @@ class ReactionNetwork:
                     #Check condition if the node already has max subunits. This can be checked by the number of edges within the Graph of each node.
                     # if (node[1]['struct'].number_of_edges() < self.max_subunits - 1) and (anode[1]['struct'].number_of_edges() < self.max_subunits - 1) and self.max_subunits >0 :
                     #     print("Adding another subunit")
-                    #     new_nodes+= self.match_maker(node,anode,self.is_one_step)
+                    #     new_nodes += self.match_maker(node,anode,self.is_one_step)
                     # elif ((node[1]['struct'].number_of_edges() >= self.max_subunits -1) or (anode[1]['struct'].number_of_edges() >= self.max_subunits-1)) and self.max_subunits >0:
                     #     print("Max subunits limit reached")
                     #     print(node[1]['struct'].edges())

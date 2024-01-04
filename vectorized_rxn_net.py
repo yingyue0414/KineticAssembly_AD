@@ -16,22 +16,39 @@ class VectorizedRxnNet:
     """
     Provides a lightweight class that represents the core information needed for
     simulation as torch tensors. Acts as a base object for optimization simulations.
-    Data structure is performance optimized, not easily readable / accessible.
+    Data structure is performance optimized, not easily readable/accessible.
 
     Units:
     units of Kon assumed to be [copies]-1 S-1, units of Koff S-1
-    units of reaction scores are treated as J * c / mol where c is a user defined scalar
+    units of reaction scores are treated as J * c / mol, where c is a user-defined scalar
     """
 
-    def __init__(self, rn: ReactionNetwork, assoc_is_param=True, copies_is_param=False, chap_is_param=False,dissoc_is_param=False, dG_is_param=False,cplx_dG=0,mode=None,type='a',dev='cpu',coupling=False,cid={-1:-1}, rxn_coupling=False, rx_cid={-1:-1},std_c=1e6,optim_rates=None,slow_rates=None,slow_ratio=1):
+    def __init__(self, 
+                 rn: ReactionNetwork, 
+                 assoc_is_param=True, 
+                 copies_is_param=False, 
+                 chap_is_param=False,
+                 dissoc_is_param=False, 
+                 dG_is_param=False,
+                 cplx_dG=0,
+                 mode=None,
+                 type='a',
+                 dev='cpu',
+                 coupling=False,
+                 cid={-1:-1}, 
+                 rxn_coupling=False, 
+                 rx_cid={-1:-1},
+                 std_c=1e6,
+                 optim_rates=None,
+                 slow_rates=None,
+                 slow_ratio=1):
         """
-
         :param rn: The reaction network template
-        :param assoc_is_param: whether the association constants should be treated as parameters for optimization
-        :param copies_is_param: whether the initial copy numbers should be treated as parameters for optimization
-        :param dev: the device to use for torch tensors
-        :param coupling : If two reactions have same kon. i.e. Addition of new subunit is same as previous subunit
-        :param cid : Reaction ids in a dictionary format. {child_reaction:parent_reaction}. Set the rate of child_reaction to parent_reaction
+        :param assoc_is_param: Whether the association constants should be treated as parameters for optimization
+        :param copies_is_param: Whether the initial copy numbers should be treated as parameters for optimization
+        :param dev: The device to use for torch tensors
+        :param coupling: If two reactions have same k_on, i.e. addition of new subunit is same as previous subunit
+        :param cid: Reaction ids in a dictionary format. {child_reaction:parent_reaction}. Set the rate of child_reaction to parent_reaction
         """
         #rn.reset()
         self.dev = torch.device(dev)
@@ -541,7 +558,7 @@ class VectorizedRxnNet:
                 # M[chap,uid] = 0
                 # M[:,-1] = 0
                 for id in uids:
-                    M[:,rn._rxn_count+id] = 0
+                    M[:, rn._rxn_count + id] = 0
 
         #To adjust for creation reactions. No reversible destruction
         if self.boolCreation_rxn or self.boolDestruction_rxn:
@@ -613,7 +630,7 @@ class VectorizedRxnNet:
                 # print("Simulation offrates: ",torch.exp(new_l_koff))
                 new_l_kon = new_l_koff - (dGrxn * scalar_modifier) - torch.log(self._C0)
                 # print(new_l_kon)
-                new_l_k = torch.cat([new_l_kon,new_l_koff],dim=0)
+                new_l_k = torch.cat([new_l_kon,new_l_koff], dim=0)
                 return(new_l_k.clone().to(self.dev))
         elif self.dG_is_param:
             if self.dG_mode==1:
@@ -627,10 +644,10 @@ class VectorizedRxnNet:
                 rxn_koff[self.rxn_class[1][:-1]] = self.params_k[1]
 
                 #THe last k_off (or dG) for one dimer will be calculated by the constraint
-                Keq = torch.prod(self.params_k[0][:-1]*self._C0/self.params_k[1])
+                Keq = torch.prod(self.params_k[0][:-1] * self._C0 / self.params_k[1])
                 dG_other = self.complx_dG + torch.log(Keq)
-                print("dG of last monomer: ",dG_other)
-                koff_last = torch.exp(dG_other)*self.params_k[0][-1]*self._C0
+                print("dG of last monomer: ", dG_other)
+                koff_last = torch.exp(dG_other) * self.params_k[0][-1] * self._C0
                 rxn_koff[self.rxn_class[1][-1]] = koff_last
 
                 if self.dG_type=='a':
@@ -642,7 +659,8 @@ class VectorizedRxnNet:
                             mon_rxns = self.dG_map[i]
                             n_rxn = len(mon_rxns)-1
                             # rxn_idx = [self.rxn_class[1].index(r) for r in mon_rxns]
-                            other_koff.append(rxn_kon[i]*torch.prod(rxn_koff[mon_rxns])/((self._C0**n_rxn)*torch.prod(rxn_kon[mon_rxns])))
+                            other_koff.append(rxn_kon[i] * torch.prod(rxn_koff[mon_rxns]) / \
+                                              ((self._C0**n_rxn) * torch.prod(rxn_kon[mon_rxns])))
                     other_koff = Tensor(other_koff)
                     other_koff.requires_grad_(True)
                     rxn_koff[mask] = other_koff
@@ -654,19 +672,18 @@ class VectorizedRxnNet:
                         if mask[i]:
                             mon_rxns = self.dG_map[i]
                             n_rxn = len(mon_rxns)-1
-                            other_kon.append(rxn_koff[i]*torch.prod(rxn_kon[mon_rxns])*(self._C0**n_rxn)/(torch.prod(rxn_koff[mon_rxns])))
+                            other_kon.append(rxn_koff[i] * torch.prod(rxn_kon[mon_rxns]) * \
+                                             (self._C0**n_rxn) / (torch.prod(rxn_koff[mon_rxns])))
                     other_kon = Tensor(other_kon)
                     # print("Other kon: ",other_kon)
                     other_kon.requires_grad_(True)
                     rxn_kon[mask] = other_kon
 
-
-
                 l_rxn_kon = torch.log(rxn_kon)
                 l_rxn_koff = torch.log(rxn_koff)
                 l_final_k = torch.cat([l_rxn_kon,l_rxn_koff],dim=0)
                 # print("Final Vectorized form : ",torch.exp(l_final_k))
-            elif self.dG_mode==2:
+            elif self.dG_mode == 2:
 
                 mask = torch.ones([len(dGrxn)],dtype=bool)
                 mask[self.rxn_class[1]] = False
@@ -678,9 +695,9 @@ class VectorizedRxnNet:
                 Keq=1
                 for i in range(len(self.rxn_class[1])):
                     rxn_kon[self.rxn_class[1][i]] = self.params_k[i]
-                for i in range(len(self.rxn_class[1])-1):
+                for i in range(len(self.rxn_class[1]) - 1):
                     # Keq=Keq*rxn_kon[self.rxn_class[1][i]]*self._C0/self.params_k[i].clone().detach()
-                    Keq=Keq*self.params_k[i].clone().detach()*self._C0/self.fixed_koff[i]
+                    Keq=Keq * self.params_k[i].clone().detach() * self._C0 / self.fixed_koff[i]
                 ## END TYPE 4
 
                 if self.dG_type=='a':
@@ -692,7 +709,7 @@ class VectorizedRxnNet:
                     rxn_koff[self.rxn_class[1][:-1]] = self.fixed_koff[self.rxn_class[1][:-1]]
                     # rxn_koff = self.fixed_koff
 
-                    #THe last k_off (or dG) for one dimer will be calculated by the constraint
+                    #The last k_off (or dG) for one dimer will be calculated by the constraint
                     # Keq = torch.prod(self.params_k[:-1]*self._C0/self.fixed_koff[self.rxn_class[1][:-1]])
                     # Keq = torch.prod(self.params_k[:-1]*self._C0/self.fixed_koff[self.rxn_class[1][:-1]])
                     dG_other = self.complx_dG + torch.log(Keq)
@@ -950,7 +967,6 @@ class VectorizedRxnNet:
                 data = self.reaction_network.network.get_edge_data(edge[0],edge[1])
                 uid = data['uid']
 
-
                 #Get generation rates; which would be kon
                 temp_kon = self.kon[uid]
 
@@ -963,13 +979,13 @@ class VectorizedRxnNet:
                 #Get conc. of reactants and products
                 prod = RN.gtostr(self.reaction_network.network.nodes[edge[1]]['struct'])
                 #Get other reactant
-                react = "".join(sorted(list(set(prod) - set(RN.gtostr(self.reaction_network.network.nodes[edge[0]]['struct']) ))))
+                react = "".join(sorted(list(set(prod) - \
+                                            set(RN.gtostr(self.reaction_network.network.nodes[edge[0]]['struct'])))))
                 react_list.append(node_map[react])
                 #Net flux from this edge = Generation - consumption
-                edge_flux_in = temp_kon*(self.copies_vec[edge[0]])*(self.copies_vec[node_map[react]])- koff*self.copies_vec[edge[1]]
+                edge_flux_in = temp_kon * (self.copies_vec[edge[0]]) * \
+                    (self.copies_vec[node_map[react]]) - koff*self.copies_vec[edge[1]]
                 #edge_flux_in = koff*vec_rn.copies_vec[edge[1]]
-
-
 
                 # print("Reaction: ", prod ," -> ",RN.gtostr(self.reaction_network.network.nodes[edge[0]]['struct']), "+",react)
                 # print("Net flux: ",edge_flux_in)
@@ -1002,7 +1018,6 @@ class VectorizedRxnNet:
                 r2 = p-r1
                 reactants = ("".join(r1),"".join(r2))
                 uid_dict[(n,k)] = uid
-
 
         #Get flux in each reaction
         #The react_dict is of the form {(reactant,reactant,product):uid}
@@ -1038,6 +1053,6 @@ class VectorizedRxnNet:
         on_rates = k[self.rxn_class[1]]
         off_rates = k[int(k.shape[0] / 2):][self.rxn_class[1]]
 
-        Keq = torch.prod(on_rates*self._C0/off_rates)
-        dG = -1*torch.log(Keq)
+        Keq = torch.prod(on_rates * self._C0 / off_rates)
+        dG = -1 * torch.log(Keq)
         return(dG)

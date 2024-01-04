@@ -73,6 +73,7 @@ class ReactionNetwork:
 
     """
     def __init__(self, bngl_path: str, one_step: bool, seed=None):
+        print(1111111)
         """
         :param bngl_path: path to bngl containing pairwise interactions.
         :param one_step: whether this reaction network should be built as one step or two step

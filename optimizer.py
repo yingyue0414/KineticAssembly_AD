@@ -166,9 +166,6 @@ class Optimizer:
         #     self.counter=0
 
     def lambda_master(self, opt_itr):
-        # update_counter()
-        # print("***** LAMBDA MASTER:  {:d}*****".format(self.lambda_counter))
-        # self.counter+=
         self.lambda_ct += 1
         return(torch.min(self.rn.params_k[self.lambda_ct % len(self.rn.params_k)]).\
                item() * self.lr_group[self.lambda_ct%len(self.rn.params_k)] / \
@@ -247,9 +244,10 @@ class Optimizer:
                                       for v in self.rn.creation_rxn_data.values()}
                 for r in range(len(rates)):
                     titration_time_map[self.rn.optim_rates[r]]  = titration_end[r]
-                self.rn.titration_time_map=titration_time_map
+                self.rn.titration_time_map = titration_time_map
                 # print("Titration Map : ",self.rn.titration_end_time)
-                new_runtime = np.max(list(titration_time_map.values())) + self.sim_runtime
+                new_runtime = np.max(list(titration_time_map.values())) + \
+                    self.sim_runtime
                 print("New Runtime:", new_runtime)
                 sim = self.sim_class(self.rn,
                                      new_runtime,
@@ -313,53 +311,24 @@ class Optimizer:
             # update tracked data
             self.sim_observables.append(self.rn.observables.copy())
             self.sim_observables[-1]['steps'] = np.array(sim.steps)
-            self.parameter_history.append(self.rn.kon.clone().detach().to(torch.device('cpu')).numpy())
+            self.parameter_history.append(self.rn.kon.clone().detach().\
+                                          to(torch.device('cpu')).numpy())
 
-
-
+            # optim should be in ['yield', 'time', 'flux_coeff']
             if optim in ['yield', 'time']:
                 if optim == 'yield':
-                    print(f'Yield on sim. iteration {i} was f{str(total_yield.item() * 100)[:4]}%.')
+                    print(f'Yield on sim. iteration {i} was \
+                          {str(total_yield.item() * 100)[:4]}%.')
                 elif optim == 'time':
-                    print(f'Yield on sim iteration {i} was {str(total_yield.item() * 100)[:4]}%' + \
+                    print(f'Yield on sim iteration {i} was \
+                          {str(total_yield.item() * 100)[:4]}%' + \
                           '\tTime :', str(cur_time))
-                # print(self.rn.copies_vec)
-                # preform gradient step
+                # Perform gradient step at every iteration except the last one
                 if i != self.optim_iterations - 1:
-                    # if self.rn.coupling:
-                    #     k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, self.rn.params_rxn_score_vec,
-                    #                                             scalar_modifier=1.))
-                    #     physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)  # stops zeroing or negating params
-                    #     cost = -total_yield + physics_penalty
-                    #
-                    #     cost.backward(retain_graph=True)
-                    # elif self.rn.partial_opt:
-                    #     k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, self.rn.params_rxn_score_vec,
-                    #                                             scalar_modifier=1.))
-                    #     physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)  # stops zeroing or negating params
-                    #     cost = -total_yield + physics_penalty
-                    #
-                    #     cost.backward(retain_graph=True)
-                    # else:
-                    #     k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,
-                    #                                             scalar_modifier=1.))
-                    #     physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)  # stops zeroing or negating params
-                    #     cost = -total_yield + physics_penalty
-
-                        # cost.backward()
                     if self.rn.coupling:
                         new_params = self.rn.params_kon.clone().detach()
-                        # for rc in range(len(self.rn.kon)):
-                        #     if rc in self.rn.cid.keys():
-                        #         self.rn.kon[rc] = self.rn.params_kon[self.rn.coup_map[self.rn.cid[rc]]]
-                        #     else:
-                        #         self.rn.kon[rc] = self.rn.params_kon[self.rn.coup_map[rc]]
                     elif self.rn.partial_opt and self.rn.assoc_is_param:
-                        # new_params = self.rn.params_kon.clone().detach()
                         new_params = [p.clone().detach() for p in self.rn.params_kon]
-                        # for r in range(len(self.rn.params_kon)):
-                        #     print("Is leaf : ",self.rn.params_kon[r].is_leaf, "Grad: ",self.rn.params_kon[r].requires_grad)
-                        #     self.rn.kon[self.rn.optim_rates[r]] = self.rn.params_kon[r]
                     elif self.rn.homo_rates and self.rn.assoc_is_param:
                         new_params = self.rn.params_kon.clone().detach()
                     elif self.rn.copies_is_param:
@@ -389,11 +358,13 @@ class Optimizer:
                         new_params = self.rn.kon.clone().detach()
                     #print('New reaction rates: ' + str(self.rn.kon.clone().detach()))
                     # new_params = self.rn.kon.clone().detach()
-                    print('current params:', str(new_params))
-                    #Store yield and params data
-                    if total_yield-max_yield > 0:
+                    print('Current params:', str(new_params))
+                    # Store yield and params data
+                    if total_yield > max_yield:
                         if self.rn.chap_is_param:
-                            self.final_yields.append([total_yield,dimer_yield,chap_sp_yield])
+                            self.final_yields.append([total_yield,
+                                                      dimer_yield,
+                                                      chap_sp_yield])
                             self.dimer_max.append(dimer_max)
                             self.chap_max.append(chap_max)
                             self.endtimes.append(endtime)
@@ -411,29 +382,40 @@ class Optimizer:
 
                     if self.rn.assoc_is_param:
                         if self.rn.coupling:
-                            k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, self.rn.params_rxn_score_vec,scalar_modifier=1.))
+                            k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, 
+                                                                        self.rn.params_rxn_score_vec,
+                                                                        scalar_modifier=1.))
                             curr_lr = self.optimizer.state_dict()['param_groups'][0]['lr']
-                            physics_penalty = torch.sum(100 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) #+ torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params
+                            physics_penalty = \
+                                torch.sum(100 * F.relu(-1 * (k - curr_lr * 10))).\
+                                    to(self.dev) #+ torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params
                             cost = -total_yield + physics_penalty
-                            cost.backward(retain_graph=True)   #retain_graph = True only required for partial_opt + coupled model
+                            cost.backward(retain_graph=True) # retain_graph = True only required for partial_opt + coupled model
                         elif self.rn.partial_opt:
                             if self.rn.boolCreation_rxn:
-                                local_kon = torch.zeros([len(self.rn.params_kon)], requires_grad=True).double()
+                                local_kon = torch.zeros([len(self.rn.params_kon)], 
+                                                        requires_grad=True).double()
                                 for r in range(len(local_kon)):
-                                    local_kon[r]=self.rn.params_kon[r]
-                                k = torch.exp(self.rn.compute_log_constants(local_kon, self.rn.params_rxn_score_vec,scalar_modifier=1.))
+                                    local_kon[r] = self.rn.params_kon[r]
+                                k = torch.exp(self.rn.compute_log_constants(local_kon, 
+                                                                            self.rn.params_rxn_score_vec,
+                                                                            scalar_modifier=1.))
                                 curr_lr = self.optimizer.state_dict()['param_groups'][0]['lr']
-                                physics_penalty = torch.sum(100 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) # stops zeroing or negating params
-                                if optim=='yield':
-                                    if creat_yield==-1:
-                                        unused_penalty = max_thresh*unused_monomer
+                                physics_penalty = \
+                                    torch.sum(100 * F.relu(-1 * (k - curr_lr * 10))).\
+                                        to(self.dev) # stops zeroing or negating params
+                                if optim == 'yield':
+                                    if creat_yield == -1:
+                                        unused_penalty = max_thresh * unused_monomer
                                         # cost = -total_yield -(total_yield/cur_time) + physics_penalty #+ unused_penalty
-                                        cost = -100*total_yield/cur_time + physics_penalty
+                                        cost = -100 * total_yield/cur_time + \
+                                            physics_penalty
                                         cost.backward(retain_graph=True)
-                                        print("Grad: ",end="")
+                                        print("Grad: ", end="")
                                         for r in range(len(self.rn.params_kon)):
-                                            print(self.rn.params_kon[r],"-",self.rn.params_kon[r].grad,end=" ")
-                                        print("")
+                                            print(f"{self.rn.params_kon[r]}-{self.rn.params_kon[r].grad}", 
+                                                  end=" ")
+                                        print()
                                     else:
                                         var_penalty=0
                                         if varBool:
@@ -442,39 +424,47 @@ class Optimizer:
                                                 var_tensor[r] = self.rn.params_kon[r]
 
                                             var_penalty = F.relu(-1 * (torch.var(var_tensor)/torch.mean(var_tensor) - var_thresh/len(self.rn.params_kon)))    #var_thresh is how much should the minimum variance be
-                                            print("Var: ",torch.var(var_tensor),"Penalty: ",var_penalty)
-                                        cost =  -total_yield +var_penalty + physics_penalty #- total_yield/cur_time
+                                            print(f"Var: {torch.var(var_tensor)}\tPenalty: {var_penalty}")
+                                        cost = -total_yield +var_penalty + \
+                                            physics_penalty #- total_yield/cur_time
                                         cost.backward(retain_graph=True)
-                                        print("Grad: ",end="")
+                                        print("Grad: ", end="")
                                         for r in range(len(self.rn.params_kon)):
                                             print(self.rn.params_kon[r],"-",self.rn.params_kon[r].grad,end=" ")
-                                        print("")
+                                        print()
                                 elif optim=='time':
                                     cost = cur_time
                                     cost.backward(retain_graph=True)
-                                    print("Grad: ",end="")
+                                    print("Grad: ", end="")
                                     for r in range(len(self.rn.params_kon)):
                                         print(self.rn.params_kon[r],"-",self.rn.params_kon[r].grad,end=" ")
-                                    print("")
-
+                                    print()
                             else:
                                 unused_penalty=0
-                                k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, self.rn.params_rxn_score_vec,scalar_modifier=1.))
+                                k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, 
+                                                                            self.rn.params_rxn_score_vec,
+                                                                            scalar_modifier=1.))
                                 curr_lr = self.optimizer.state_dict()['param_groups'][0]['lr']
-                                physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params ; Second term prevents exceeding a max_thresh
+                                physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + \
+                                    torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params ; Second term prevents exceeding a max_thresh
                                 cost = -total_yield + physics_penalty + unused_penalty
                                 cost.backward(retain_graph=True)
                         elif self.rn.homo_rates:
-                            k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, self.rn.params_rxn_score_vec,scalar_modifier=1.))
+                            k = torch.exp(self.rn.compute_log_constants(self.rn.params_kon, 
+                                                                        self.rn.params_rxn_score_vec,
+                                                                        scalar_modifier=1.))
                             curr_lr = self.optimizer.state_dict()['param_groups'][0]['lr']
-                            physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params
+                            physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + \
+                                torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev) # stops zeroing or negating params
                             cost = -total_yield + physics_penalty
                             cost.backward(retain_graph=True)
                         else:
-                            k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,
-                                                            scalar_modifier=1.))
+                            k = torch.exp(self.rn.compute_log_constants(self.rn.kon, 
+                                                                        self.rn.rxn_score_vec,
+                                                                        scalar_modifier=1.))
                             curr_lr = self.optimizer.state_dict()['param_groups'][0]['lr']
-                            physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev)
+                            physics_penalty = torch.sum(10 * F.relu(-1 * (k - curr_lr * 10))).to(self.dev) + \
+                                torch.sum(10 * F.relu(1 * (k - max_thresh))).to(self.dev)
                             if lowvar:
                                 mon_rxn = self.rn.rxn_class[1]
                                 var_penalty = 100*F.relu(1 * (torch.var(k[mon_rxn])))
@@ -503,33 +493,36 @@ class Optimizer:
                         for r in range(n_copy_params):
                             pen_copies[r] = self.rn.chap_params[r].clone()
                         for r in range(n_rxn_params):
-                            pen_rates[r]= self.rn.chap_params[r+n_copy_params]
+                            pen_rates[r]= self.rn.chap_params[r + n_copy_params]
                         # c = self.rn.chap_params[0].clone().detach()
                         # k = self.rn.chap_params[1].clone().detach()
-                        physics_penalty = torch.sum(max_thresh * F.relu(-10 * (pen_copies-1))).to(self.dev) + torch.sum(max_thresh * F.relu(-1 * (pen_rates - 1e-2))).to(self.dev) #+ torch.sum(00 * F.relu(c-1e2)).to(self.dev)
-                        print("Penalty: ",physics_penalty, "Dimer yield: ",dimer_yield,"ABT yield: ",chap_sp_yield)
+                        physics_penalty = torch.sum(max_thresh * F.relu(-10 * (pen_copies - 1))).to(self.dev) + \
+                            torch.sum(max_thresh * F.relu(-1 * (pen_rates - 1e-2))).to(self.dev) #+ torch.sum(00 * F.relu(c-1e2)).to(self.dev)
+                        print("Penalty: ", physics_penalty, 
+                              "Dimer yield: ", dimer_yield,
+                              "ABT yield: ",chap_sp_yield)
 
                         # cost = -total_yield + physics_penalty + 1*dimer_yield + 1*chap_sp_yield
                         # cost = 1*chap_sp_yield #-total_yield #+1*dimer_yield
                         if chap_mode == 1:
-                            cost = -total_yield-dimer_yield
-                        elif chap_mode ==2:
-                            cost = chap_sp_yield+dimer_yield
-                        elif chap_mode==3:
+                            cost = -total_yield - dimer_yield
+                        elif chap_mode == 2:
+                            cost = chap_sp_yield + dimer_yield
+                        elif chap_mode == 3:
                             cost = -total_yield
                         cost.backward(retain_graph=True)
                         for i in range(len(self.rn.chap_params)):
-                            print("Grad: ",self.rn.chap_params[i].grad,end="")
+                            print("Grad: ", self.rn.chap_params[i].grad, end="")
                         print("")
                     elif self.rn.dissoc_is_param:
                         if self.rn.partial_opt:
                             k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,scalar_modifier=1.))
-                            new_l_k = torch.cat([k,torch.log(self.rn.params_koff)],dim=0)
+                            new_l_k = torch.cat([k, torch.log(self.rn.params_koff)],
+                                                dim=0)
                             physics_penalty = torch.sum(10 * F.relu(-1 * (new_l_k))).to(self.dev)  # stops zeroing or negating params
                             cost = -total_yield + physics_penalty
                             cost.backward(retain_graph=True)
                         else:
-
                             k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,
                                                                 scalar_modifier=1.))
                             physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)
@@ -545,12 +538,12 @@ class Optimizer:
 
                         dG_penalty = F.relu((g-(self.rn.complx_dG+2))) + F.relu(-1*(g-(self.rn.complx_dG-2)))
                         print("Current On rates: ", k[:len(self.rn.kon)])
-                        physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev) + torch.sum(100 * F.relu((k - 1e2))).to(self.dev)
-                        cost = -total_yield + physics_penalty + 10*dG_penalty
+                        physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev) + \
+                            torch.sum(100 * F.relu((k - 1e2))).to(self.dev)
+                        cost = -total_yield + physics_penalty + 10 * dG_penalty
                         # print(self.optimizer.state_dict)
                         cost.backward(retain_graph=True)
                         metric = torch.mean(self.rn.params_k[1].clone().detach()).item()
-
 
                     # self.scheduler.step(metric)
                     if (self.lr_change_step is not None) and (total_yield>=change_lr_yield):
@@ -563,7 +556,6 @@ class Optimizer:
                         if change_lr:
                             self.scheduler.step()
 
-
                     #Changing learning rate
                     if (self.lr_change_step is not None) and (i%self.lr_change_step ==0) and (i>0):
                         print("New learning rate : ")
@@ -571,32 +563,14 @@ class Optimizer:
                             print(param_groups['lr'])
 
                     self.optimizer.step()
-
-                    #print("Previous reaction rates: ",str(self.rn.kon.clone().detach()))
-
-
-
-
-            # elif optim =='flux':
-            #     print('Flux on sim iteration ' + str(i) + ' was ' + str(total_flux.item()))
-            #     # preform gradient step
-            #     if i != self.optim_iterations - 1:
-            #         k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,
-            #                                                     scalar_modifier=1.))
-            #         physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)  # stops zeroing or negating params
-            #         cost = -total_flux + physics_penalty
-            #         cost.backward()
-            #         self.optimizer.step()
-            #         new_params = self.rn.kon.clone().detach()
-            #         print('current params: ' + str(new_params))
-
             elif optim == 'flux_coeff':
                 print("Optimizing Flux Correlations")
                 print(f'Yield on sim iteration {i} was {total_yield.item()}.')
                 if i != self.optim_iterations - 1:
                         k = torch.exp(self.rn.compute_log_constants(self.rn.kon, self.rn.rxn_score_vec,
                                                                     scalar_modifier=1.))
-                        physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).to(self.dev)  # stops zeroing or negating params
+                        physics_penalty = torch.sum(10 * F.relu(-1 * (k - self.lr * 10))).\
+                            to(self.dev)  # stops zeroing or negating params
                         cost = -total_yield + physics_penalty
                         cost.backward()
                         self.optimizer.step()
@@ -610,10 +584,11 @@ class Optimizer:
             values = psutil.virtual_memory()
             mem = values.available / (1024.0 ** 3)
             if mem < .5:
-                # kill program if it uses to much ram
+                # Kill program if it uses to much RAM
                 print("Killing optimization because too much RAM being used.")
                 print(values.available,mem)
                 return self.rn
+            # Print output at end of last iteration
             if i == self.optim_iterations - 1:
                 print("optimization complete")
                 print("Final params: " + str(new_params))
