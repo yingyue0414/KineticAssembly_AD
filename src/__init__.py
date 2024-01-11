@@ -9,7 +9,7 @@ from .vectorized_rxn_net_KinSim import VectorizedRxnNet_KinSim
 from .vec_sim import VecSim
 from .vec_kinsim import VecKinSim
 from .optimizer import Optimizer
-from .EqSolver import EquilibriumSolver
+from .eq_solver import EquilibriumSolver
 from .reaction_network import gtostr
 from .trap_metric import TrapMetric
 
